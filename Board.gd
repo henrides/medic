@@ -6,6 +6,7 @@ var tile_size = get_cell_size()
 var half_tile_size = tile_size / 2
 
 var grid_size = Vector2(6,6)
+var field_positions = Array()
 
 enum PLAYER_TYPE { HUMAN, ARTILLERY }
 var turn = PLAYER_TYPE.HUMAN
@@ -21,6 +22,8 @@ const RIGHT = Vector2(1, 0)
 func _ready():
 	randomize()
 	
+	generate_field()
+	
 	for u in range(0, 5):
 		var unit_pos = rand_empty_space()
 		var unit = Unit.instance()
@@ -30,8 +33,10 @@ func _ready():
 		unit.position = map_to_world(unit_pos) + half_tile_size
 		
 	
-	#var heli_pos = rand_empty_space()
-	#grid[heli_pos.x][heli_pos.y] = ENTITY_TYPE.HELICOPTER
+	var helicopter_pos = rand_empty_space()
+	$Helicopter.position = map_to_world(helicopter_pos) + half_tile_size
+	$Helicopter.connect("evacuated", self, "_on_Helicopter_evacuated")
+	$Helicopter.connect("destroyed", self, "_on_Helicopter_destroyed")
 	
 	var medic_pos = rand_empty_space()
 	$Medic.position = map_to_world(medic_pos) + half_tile_size
@@ -39,13 +44,17 @@ func _ready():
 	
 	$Artillery.connect("position_struck", self, "_on_Artillery_position_struck")
 
+func generate_field():
+	for i in range(0, grid_size.x): 
+		for j in range(0, grid_size.y):
+			field_positions.append(Vector2(i, j))
+
 func rand_empty_space():
 	while true:
-		var x = randi() % int(grid_size.x)
-		var y = randi() % int(grid_size.y)
-		var position = Vector2(x, y)
+		var position_idx = randi() % int(field_positions.size())
+		var position = field_positions[position_idx]
 		if get_child_at_position(position) == null:
-			return Vector2(x, y)
+			return position
 
 func can_move_to(child_node, grid_pos):
 	if turn != PLAYER_TYPE.HUMAN or child_node.is_moving:
@@ -67,6 +76,13 @@ func _on_Unit_dead(unit):
 		dogtag.position = position
 		dogtag.connect("collected", self, "_on_Dogtag_collected")
 		add_child(dogtag)
+		
+func _on_Helicopter_evacuated():
+	print("Evacuated")
+		
+func _on_Helicopter_destroyed():
+	var new_pos = rand_empty_space()
+	$Helicopter.position = map_to_world(new_pos) + half_tile_size
 		
 func _on_Dogtag_collected(dogtag):
 	if dogtag != null:
@@ -111,7 +127,7 @@ func get_tile_cost(position):
 func _process(delta):
 	if turn == PLAYER_TYPE.ARTILLERY:
 		if not $Artillery.is_striking:
-			$Artillery.strike(grid_size)
+			$Artillery.strike_array(field_positions)
 	elif turn == PLAYER_TYPE.HUMAN:
 		var direction = null
 		if Input.is_action_pressed("ui_up"):
